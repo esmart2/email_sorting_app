@@ -62,6 +62,7 @@ export default function AccountsPage() {
 
   const handleLinkAccount = async () => {
     try {
+      setActionInProgress(true);
       console.log('Getting Supabase session...');
       const { data, error } = await supabase.auth.getSession();
       
@@ -96,6 +97,8 @@ export default function AccountsPage() {
     } catch (err) {
       console.error('Error during account linking:', err);
       setError(err instanceof Error ? err.message : 'Failed to initiate account linking');
+    } finally {
+      setActionInProgress(false);
     }
   };
 
@@ -117,9 +120,10 @@ export default function AccountsPage() {
         {user && (
           <Button
             onClick={handleLinkAccount}
+            disabled={actionInProgress}
             className="bg-blue-600 text-white hover:bg-blue-700"
           >
-            Connect another Gmail inbox
+            {actionInProgress ? 'Connecting...' : 'Connect another Gmail inbox'}
           </Button>
         )}
       </div>
@@ -142,8 +146,9 @@ export default function AccountsPage() {
               <Button
                 variant="outline"
                 onClick={signOut}
+                disabled={actionInProgress}
               >
-                Sign Out
+                {actionInProgress ? 'Signing out...' : 'Sign Out'}
               </Button>
             </div>
           </div>
@@ -170,6 +175,7 @@ export default function AccountsPage() {
           <Button
             variant="outline"
             onClick={() => window.location.href = '/'}
+            disabled={actionInProgress}
           >
             Sign In with Google
           </Button>
