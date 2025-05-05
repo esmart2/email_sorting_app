@@ -12,6 +12,8 @@ export default defineConfig({
     port: parseInt(process.env.PORT || '4173'),
     host: true, // Listen on all available network interfaces
     allowedHosts: ['email-sorting-app.onrender.com', 'localhost'],
+    // SPA Fallback
+    strictPort: true,
   },
   build: {
     outDir: 'dist',
