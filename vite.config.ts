@@ -8,6 +8,10 @@ export default defineConfig({
   server: {
     port: 3000,
   },
+  preview: {
+    port: parseInt(process.env.PORT || '4173'),
+    host: true, // Listen on all available network interfaces
+  },
   build: {
     outDir: 'dist',
     sourcemap: true,
