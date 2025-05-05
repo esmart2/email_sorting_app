@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useNavigate } from 'react-router-dom'
+import { config } from '../lib/config'
 
 export default function Login() {
   const [loading, setLoading] = useState(false)
@@ -46,11 +47,11 @@ export default function Login() {
       setLoading(true);
       setError(null);
       
-      console.log('Initiating Google OAuth login...');
+      console.log('Initiating Google OAuth login with redirect URL:', `${config.siteUrl}/categorized-emails`);
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/categorized-emails`,
+          redirectTo: `${config.siteUrl}/categorized-emails`,
           queryParams: {
             access_type: 'offline',
             prompt: 'consent',

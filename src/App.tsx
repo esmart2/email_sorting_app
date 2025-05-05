@@ -10,8 +10,19 @@ import { useEffect } from 'react';
 import { supabase } from './lib/supabase';
 import { getApiUrl } from './lib/config';
 
+// Add error logging
+console.log('Environment Variables:', {
+  hasSupabaseUrl: !!import.meta.env.VITE_SUPABASE_URL,
+  hasSupabaseKey: !!import.meta.env.VITE_SUPABASE_ANON_KEY,
+  apiUrl: import.meta.env.VITE_API_URL,
+});
+
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
+
+  useEffect(() => {
+    console.log('PrivateRoute state:', { hasUser: !!user, loading });
+  }, [user, loading]);
 
   if (loading) {
     return (
@@ -201,6 +212,18 @@ function AppRoutes() {
 }
 
 export default function App() {
+  useEffect(() => {
+    // Add error event listener
+    window.addEventListener('error', (event) => {
+      console.error('Global error:', event.error);
+    });
+
+    // Add unhandled promise rejection listener
+    window.addEventListener('unhandledrejection', (event) => {
+      console.error('Unhandled promise rejection:', event.reason);
+    });
+  }, []);
+
   return (
     <Router>
       <AppRoutes />
