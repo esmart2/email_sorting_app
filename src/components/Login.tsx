@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useNavigate } from 'react-router-dom'
-import { config } from '../lib/config'
 
 export default function Login() {
   const [loading, setLoading] = useState(false)
