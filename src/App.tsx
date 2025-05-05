@@ -91,7 +91,6 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
 function AppRoutes() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [processingAuth, setProcessingAuth] = useState(false);
 
   const storePrimaryAccount = async (session: any) => {
     try {

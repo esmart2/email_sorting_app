@@ -17,7 +17,7 @@ export default function AccountsPage() {
   const [tokenDebug, setTokenDebug] = useState<any>(null);
 
   const fetchLinkedAccounts = async () => {
-    setLoading(true);
+    setActionInProgress(true);
     setError(null);
     
     try {
