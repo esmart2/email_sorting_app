@@ -47,7 +47,11 @@ export default function Login() {
       setLoading(true);
       setError(null);
       
-      const redirectURL = new URL('/categorized-emails', config.siteUrl).toString();
+      // Determine the redirect URL based on environment
+      const redirectURL = import.meta.env.PROD 
+        ? 'https://email-sorting-app.onrender.com/categorized-emails'
+        : `${window.location.origin}/categorized-emails`;
+
       console.log('Initiating Google OAuth login with redirect URL:', redirectURL);
       
       const { data, error } = await supabase.auth.signInWithOAuth({
