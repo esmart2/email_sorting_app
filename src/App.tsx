@@ -15,6 +15,8 @@ console.log('Environment Variables:', {
   hasSupabaseUrl: !!import.meta.env.VITE_SUPABASE_URL,
   hasSupabaseKey: !!import.meta.env.VITE_SUPABASE_ANON_KEY,
   apiUrl: import.meta.env.VITE_API_URL,
+  siteUrl: import.meta.env.VITE_SITE_URL,
+  currentUrl: window.location.href
 });
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {

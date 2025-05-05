@@ -47,11 +47,13 @@ export default function Login() {
       setLoading(true);
       setError(null);
       
-      console.log('Initiating Google OAuth login with redirect URL:', `${config.siteUrl}/categorized-emails`);
+      const redirectURL = new URL('/categorized-emails', config.siteUrl).toString();
+      console.log('Initiating Google OAuth login with redirect URL:', redirectURL);
+      
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${config.siteUrl}/categorized-emails`,
+          redirectTo: redirectURL,
           queryParams: {
             access_type: 'offline',
             prompt: 'consent',
