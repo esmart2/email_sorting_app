@@ -1,12 +1,8 @@
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { Button } from "../components/ui/button"
+import { Input } from "../components/ui/input"
 import { Search } from "lucide-react"
 
-interface EmailDashboardProps {
-  selectedCategory: string | null;
-}
-
-export default function EmailDashboard({ selectedCategory }: EmailDashboardProps) {
+export default function EmailDashboard() {
   return (
     <div className="flex flex-1 flex-col bg-white">
       <header className="flex justify-end items-center h-16 px-8 border-b bg-white">

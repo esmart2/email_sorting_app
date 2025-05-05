@@ -106,7 +106,7 @@ export default function CategorizedEmailsPage() {
     }
   };
 
-  const handleEmailSelection = (emailId: string, gmail_message_id: string) => {
+  const handleEmailSelection = (gmail_message_id: string) => {
     setSelectedEmails(prev => {
       const next = new Set(prev);
       if (next.has(gmail_message_id)) {
@@ -280,7 +280,7 @@ export default function CategorizedEmailsPage() {
                         <input
                           type="checkbox"
                           checked={selectedEmails.has(email.gmail_message_id)}
-                          onChange={() => handleEmailSelection(email.id, email.gmail_message_id)}
+                          onChange={() => handleEmailSelection(email.gmail_message_id)}
                           className="h-5 w-5 border-gray-300"
                         />
                       </div>

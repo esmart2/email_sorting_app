@@ -12,12 +12,12 @@ interface LinkedAccount {
 export default function AccountsPage() {
   const { user, loading: authLoading, signOut } = useAuth();
   const [linkedAccounts, setLinkedAccounts] = useState<LinkedAccount[]>([]);
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [actionInProgress, setActionInProgress] = useState(false);
 
   const fetchLinkedAccounts = async () => {
     try {
-      setLoading(true);
+      setActionInProgress(true);
       setError(null);
 
       const { data: { session } } = await supabase.auth.getSession();
@@ -50,7 +50,7 @@ export default function AccountsPage() {
       console.error('Error in fetchLinkedAccounts:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch linked accounts');
     } finally {
-      setLoading(false);
+      setActionInProgress(false);
     }
   };
 

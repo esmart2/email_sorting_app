@@ -25,6 +25,7 @@ export default function CreateCategoryPage() {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) {
+        navigate('/', { replace: true });
         throw new Error('No active session');
       }
 
