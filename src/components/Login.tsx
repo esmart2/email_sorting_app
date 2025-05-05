@@ -5,17 +5,37 @@ import { useNavigate } from 'react-router-dom'
 export default function Login() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [authInfo, setAuthInfo] = useState<string | null>(null)
   const navigate = useNavigate()
 
   useEffect(() => {
     console.log('Login component mounted');
+    
+    // Check if we have auth error params in the URL
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.has('error')) {
+      setError(urlParams.get('error') || 'Authentication error occurred');
+    }
+    
     // Check if we already have a session
     supabase.auth.getSession().then(({ data: { session } }) => {
       console.log('Initial session check in Login:', {
         hasSession: !!session,
         hasAccessToken: !!session?.access_token,
-        hasProviderToken: !!session?.provider_token
+        providerTokenType: typeof session?.provider_token,
+        isProviderTokenPresent: session?.provider_token === 'present'
       });
+      
+      // If we have a session but the provider token is just "present" (not a real token),
+      // we need to re-authenticate
+      if (session && session.provider_token === 'present') {
+        console.log('Provider token is invalid - showing re-auth message');
+        setAuthInfo('Your Google authentication has expired. Please sign in again to refresh your access.');
+        // Sign out to clear the invalid session
+        supabase.auth.signOut();
+        return;
+      }
+      
       if (session) {
         console.log('Existing session found in Login, redirecting...');
         navigate('/categorized-emails', { replace: true });
@@ -28,9 +48,19 @@ export default function Login() {
         event,
         hasSession: !!session,
         hasAccessToken: !!session?.access_token,
-        hasProviderToken: !!session?.provider_token
+        hasProviderToken: !!session?.provider_token,
+        providerTokenType: typeof session?.provider_token,
+        isProviderTokenPresent: session?.provider_token === 'present'
       });
+      
       if (event === 'SIGNED_IN' && session) {
+        // Check for invalid provider token
+        if (session.provider_token === 'present') {
+          console.log('Signed in but provider token is invalid - showing warning');
+          setAuthInfo('Your Google authentication is incomplete. Please sign out and sign in again.');
+          return;
+        }
+        
         navigate('/categorized-emails', { replace: true });
       }
     });
@@ -45,6 +75,10 @@ export default function Login() {
     try {
       setLoading(true);
       setError(null);
+      setAuthInfo(null);
+      
+      // Clear any existing sessions first to ensure we get fresh tokens
+      await supabase.auth.signOut();
       
       // Determine the redirect URL based on environment
       const redirectURL = import.meta.env.PROD 
@@ -106,6 +140,11 @@ export default function Login() {
             <p className="text-sm text-red-700">{error}</p>
           </div>
         )}
+        {authInfo && (
+          <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <p className="text-sm text-yellow-700">{authInfo}</p>
+          </div>
+        )}
       </div>
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
@@ -147,6 +186,19 @@ export default function Login() {
               </>
             )}
           </button>
+          
+          {/* Add sign out button if we're in an invalid state */}
+          {authInfo && (
+            <button
+              onClick={async () => {
+                await supabase.auth.signOut();
+                window.location.reload();
+              }}
+              className="w-full mt-4 flex justify-center items-center px-4 py-2 border border-red-300 shadow-sm text-sm font-medium rounded-md text-red-700 bg-white hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+            >
+              Sign Out and Try Again
+            </button>
+          )}
         </div>
       </div>
     </div>

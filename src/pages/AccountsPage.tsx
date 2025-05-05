@@ -14,36 +14,59 @@ export default function AccountsPage() {
   const [linkedAccounts, setLinkedAccounts] = useState<LinkedAccount[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [actionInProgress, setActionInProgress] = useState(false);
+  const [tokenDebug, setTokenDebug] = useState<any>(null);
 
   const fetchLinkedAccounts = async () => {
+    setLoading(true);
+    setError(null);
+    
     try {
-      setActionInProgress(true);
-      setError(null);
-
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token || !session?.provider_token) {
-        setError('No active session found');
+      
+      // DEBUG: Check token info
+      setTokenDebug({
+        hasSession: !!session,
+        accessTokenType: typeof session?.access_token,
+        accessTokenLength: session?.access_token?.length,
+        accessTokenPrefix: session?.access_token?.substring(0, 10) + '...',
+        providerTokenType: typeof session?.provider_token,
+        providerTokenLength: session?.provider_token?.length,
+        providerTokenPrefix: session?.provider_token?.substring(0, 10) + '...',
+        userInfo: session?.user ? {
+          id: session.user.id,
+          email: session.user.email
+        } : null
+      });
+      
+      if (!session) {
+        throw new Error('No session found');
+      }
+
+      // Check if provider token is a literal string 'present'
+      if (session.provider_token === 'present') {
+        console.error('Provider token is literal "present" string, not a real token');
+        setError('Invalid provider token. Please sign out and sign in again.');
         return;
       }
 
-      const response = await fetch(getApiUrl('emails/accounts/linked'), {
+      const res = await fetch(getApiUrl('accounts'), {
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
-          'X-Google-Token': session.provider_token,
-          'Content-Type': 'application/json'
+          'X-Google-Token': session.provider_token || '',
+          'Content-Type': 'application/json',
         }
       });
 
-      if (!response.ok) {
-        const errorData = await response.text();
+      if (!res.ok) {
+        const errorData = await res.text();
         console.error('API Error:', {
-          status: response.status,
+          status: res.status,
           error: errorData
         });
         throw new Error(`Failed to fetch linked accounts: ${errorData}`);
       }
 
-      const data = await response.json();
+      const data = await res.json();
       const filteredAccounts = data.filter((account: LinkedAccount) => account.email !== user?.email);
       setLinkedAccounts(filteredAccounts);
     } catch (err) {
@@ -128,6 +151,14 @@ export default function AccountsPage() {
         )}
       </div>
 
+      {/* Token debugging section */}
+      {tokenDebug && (
+        <div className="p-4 bg-gray-100 rounded-lg mb-4 overflow-auto max-h-60">
+          <h3 className="font-semibold mb-2">Token Debug Info:</h3>
+          <pre className="text-xs">{JSON.stringify(tokenDebug, null, 2)}</pre>
+        </div>
+      )}
+      
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
           <p className="text-red-700">{error}</p>

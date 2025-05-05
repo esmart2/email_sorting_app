@@ -6,7 +6,7 @@ import AccountsPage from './pages/AccountsPage';
 import CreateCategoryPage from './pages/CreateCategoryPage';
 import CategorizedEmailsPage from './pages/CategorizedEmailsPage';
 import EmailDetailPage from './pages/EmailDetailPage';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { supabase } from './lib/supabase';
 import { getApiUrl } from './lib/config';
 
@@ -21,9 +21,32 @@ console.log('Environment Variables:', {
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
+  const [tokenError, setTokenError] = useState<string | null>(null);
 
   useEffect(() => {
     console.log('PrivateRoute state:', { hasUser: !!user, loading });
+    
+    // Check if we have a valid provider token
+    async function checkTokens() {
+      const { data: { session } } = await supabase.auth.getSession();
+      console.log('Token check:', {
+        hasAccessToken: !!session?.access_token,
+        accessTokenType: typeof session?.access_token,
+        hasProviderToken: !!session?.provider_token,
+        providerTokenType: typeof session?.provider_token,
+        providerTokenValue: session?.provider_token ? 
+          (session.provider_token === 'present' ? 'LITERAL_PRESENT' : 'VALID_TOKEN') : 'MISSING'
+      });
+      
+      if (session?.provider_token === 'present') {
+        console.error('Provider token is literal "present" string, not a real token');
+        setTokenError('Your Google authorization has expired. Please sign out and sign in again.');
+      }
+    }
+    
+    if (user) {
+      checkTokens();
+    }
   }, [user, loading]);
 
   if (loading) {
@@ -37,6 +60,30 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
   if (!user) {
     return <Navigate to="/" replace />;
   }
+  
+  if (tokenError) {
+    return (
+      <Layout>
+        <div className="min-h-screen py-8">
+          <div className="max-w-2xl mx-auto px-4">
+            <div className="bg-red-50 border border-red-300 rounded-lg p-6 mb-6">
+              <h2 className="text-xl font-bold text-red-700 mb-2">Authentication Error</h2>
+              <p className="text-red-700 mb-4">{tokenError}</p>
+              <button 
+                onClick={async () => {
+                  await supabase.auth.signOut();
+                  window.location.href = '/';
+                }}
+                className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
+              >
+                Sign Out and Try Again
+              </button>
+            </div>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
 
   return <Layout>{children}</Layout>;
 }
@@ -44,21 +91,34 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
 function AppRoutes() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [processingAuth, setProcessingAuth] = useState(false);
 
   const storePrimaryAccount = async (session: any) => {
     try {
       console.log('Store primary account called with session:', {
         hasSession: !!session,
         accessToken: session?.access_token ? 'present' : 'missing',
-        providerToken: session?.provider_token ? 'present' : 'missing',
+        providerToken: session?.provider_token ? 
+          (session.provider_token === 'present' ? 'LITERAL_PRESENT' : 'VALID_TOKEN') : 'MISSING',
         user: session?.user ? 'present' : 'missing'
       });
 
-      if (!session?.access_token || !session?.provider_token) {
-        console.error('Missing tokens for primary account storage:', {
-          hasAccessToken: !!session?.access_token,
-          hasProviderToken: !!session?.provider_token
-        });
+      if (!session?.access_token) {
+        console.error('Missing access token for primary account storage');
+        return;
+      }
+
+      // Check if provider token is the literal string "present"
+      if (session?.provider_token === 'present') {
+        console.error('Provider token is the literal string "present" - cannot make API calls');
+        // Force a sign out to clear the invalid state
+        await supabase.auth.signOut();
+        navigate('/', { replace: true });
+        return;
+      }
+
+      if (!session?.provider_token) {
+        console.error('Missing provider token for primary account storage');
         return;
       }
 
@@ -79,6 +139,13 @@ function AppRoutes() {
           statusText: response.statusText,
           error: errorText
         });
+        
+        // If we get a 401, the token is invalid - sign out and try again
+        if (response.status === 401) {
+          console.error('Auth tokens are invalid or expired - signing out');
+          await supabase.auth.signOut();
+          navigate('/', { replace: true });
+        }
       } else {
         console.log('Successfully stored primary account');
       }
