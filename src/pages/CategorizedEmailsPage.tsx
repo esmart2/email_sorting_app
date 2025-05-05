@@ -46,6 +46,8 @@ export default function CategorizedEmailsPage() {
       console.log('Session tokens:', { 
         hasAccessToken: !!session?.access_token, 
         hasProviderToken: !!session?.provider_token,
+        accessTokenValue: session?.access_token,
+        providerTokenValue: session?.provider_token,
         expiresAt: session?.expires_at ? new Date(session.expires_at * 1000).toISOString() : 'unknown'
       });
 
@@ -55,7 +57,12 @@ export default function CategorizedEmailsPage() {
         return; 
       }
 
-      const { provider_token } = session;
+      // IMPORTANT: Force the API call even with invalid tokens for debugging
+      const provider_token = session.provider_token === 'present' ? 
+        'debug_placeholder_token' : session.provider_token;
+        
+      console.error('⚠️ WARNING: Using a placeholder token for debugging');
+      
       if (!provider_token) { 
         console.error('No provider token available');
         handleTokenExpired(); 
@@ -63,27 +70,30 @@ export default function CategorizedEmailsPage() {
       }
 
       const apiUrl = getApiUrl('emails');
-      console.log('Fetching emails from:', apiUrl);
+      console.log('🔄 FORCE ATTEMPTING API request to:', apiUrl);
 
       try {
+        // Force the API call even with invalid tokens for debugging
         const res = await fetch(apiUrl, {
           headers: {
             'Authorization': `Bearer ${session.access_token}`,
             'X-Google-Token': provider_token,
             'Content-Type': 'application/json',
-          }
+          },
+          // Add cache buster to prevent caching
+          cache: 'no-store'
         });
 
         console.log('Emails API response status:', res.status);
 
         if (!res.ok) {
-          const errData = await res.json().catch(() => null);
-          console.error('Failed to fetch emails:', errData);
+          const errData = await res.text();
+          console.error('Failed to fetch emails response:', errData);
           if (res.status === 401) { handleTokenExpired(); return; }
-          throw new Error(errData?.detail || 'Failed to fetch emails');
+          throw new Error(errData || 'Failed to fetch emails');
         }
 
-        const emails: Email[] = await res.json();
+        const emails = await res.json() as Email[];
         console.log(`Received ${emails.length} emails from API`);
         const grouped = emails.reduce<EmailsByCategory>((acc, email) => {
           const cat = email.category_id || 'uncategorized';
@@ -108,7 +118,9 @@ export default function CategorizedEmailsPage() {
       const { data: { session } } = await supabase.auth.getSession();
       console.log('Session for categories:', { 
         hasAccessToken: !!session?.access_token, 
-        hasProviderToken: !!session?.provider_token 
+        hasProviderToken: !!session?.provider_token,
+        accessTokenValue: session?.access_token,
+        providerTokenValue: session?.provider_token
       });
       
       if (!session) { 
@@ -117,7 +129,12 @@ export default function CategorizedEmailsPage() {
         return; 
       }
 
-      const { provider_token } = session;
+      // IMPORTANT: Force the API call even with invalid tokens for debugging
+      const provider_token = session.provider_token === 'present' ? 
+        'debug_placeholder_token' : session.provider_token;
+        
+      console.error('⚠️ WARNING: Using a placeholder token for categories');
+      
       if (!provider_token) { 
         console.error('No provider token for categories fetch');
         handleTokenExpired(); 
@@ -125,26 +142,28 @@ export default function CategorizedEmailsPage() {
       }
 
       const apiUrl = getApiUrl('categories');
-      console.log('Fetching categories from:', apiUrl);
+      console.log('🔄 FORCE ATTEMPTING categories API request to:', apiUrl);
       
       try {
         const res = await fetch(apiUrl, {
           headers: {
             'Authorization': `Bearer ${session.access_token}`,
             'X-Google-Token': provider_token,
-          }
+          },
+          // Add cache buster to prevent caching
+          cache: 'no-store'
         });
 
         console.log('Categories API response status:', res.status);
 
         if (!res.ok) {
-          const errData = await res.json().catch(() => null);
-          console.error('Failed to fetch categories:', errData);
+          const errData = await res.text();
+          console.error('Failed to fetch categories response:', errData);
           if (res.status === 401) { handleTokenExpired(); return; }
-          throw new Error(errData?.detail || 'Failed to fetch categories');
+          throw new Error(errData || 'Failed to fetch categories');
         }
 
-        const cats: Category[] = await res.json();
+        const cats = await res.json() as Category[];
         console.log(`Received ${cats.length} categories from API`);
         setCategories(cats);
       } catch (fetchError) {

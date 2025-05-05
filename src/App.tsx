@@ -96,7 +96,7 @@ function AppRoutes() {
     try {
       console.log('Store primary account called with session:', {
         hasSession: !!session,
-        accessToken: session?.access_token ? 'present' : 'missing',
+        accessToken: session?.access_token ? (typeof session.access_token === 'string' ? 'present' : 'object') : 'missing',
         providerToken: session?.provider_token ? 
           (session.provider_token === 'present' ? 'LITERAL_PRESENT' : 'VALID_TOKEN') : 'MISSING',
         user: session?.user ? 'present' : 'missing'
@@ -107,29 +107,28 @@ function AppRoutes() {
         return;
       }
 
-      // Check if provider token is the literal string "present"
-      if (session?.provider_token === 'present') {
-        console.error('Provider token is the literal string "present" - cannot make API calls');
-        // Force a sign out to clear the invalid state
-        await supabase.auth.signOut();
-        navigate('/', { replace: true });
-        return;
-      }
-
-      if (!session?.provider_token) {
+      // FORCE API CALL: Use placeholder for debugging if token is "present"
+      let provider_token = session.provider_token;
+      if (provider_token === 'present') {
+        console.error('Provider token is the literal string "present" - using placeholder for debugging');
+        provider_token = 'debug_placeholder_token';
+      } else if (!provider_token) {
         console.error('Missing provider token for primary account storage');
         return;
       }
 
-      console.log('Attempting to store primary account...');
+      console.log('🔄 FORCE ATTEMPTING to store primary account...');
       const response = await fetch(getApiUrl('emails/store-primary-account'), {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
-          'X-Google-Token': session.provider_token,
+          'X-Google-Token': provider_token,
           'Content-Type': 'application/json',
         },
+        cache: 'no-store'
       });
+
+      console.log('Primary account API response status:', response.status);
 
       if (!response.ok) {
         const errorText = await response.text();
