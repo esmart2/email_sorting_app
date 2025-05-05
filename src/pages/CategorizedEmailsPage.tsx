@@ -40,68 +40,119 @@ export default function CategorizedEmailsPage() {
   };
 
   const fetchEmails = async () => {
+    console.log('fetchEmails called');
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) { handleTokenExpired(); return; }
-
-      const { provider_token } = session;
-      if (!provider_token) { handleTokenExpired(); return; }
-
-      const res = await fetch(getApiUrl('emails'), {
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-          'X-Google-Token': provider_token,
-          'Content-Type': 'application/json',
-        }
+      console.log('Session tokens:', { 
+        hasAccessToken: !!session?.access_token, 
+        hasProviderToken: !!session?.provider_token,
+        expiresAt: session?.expires_at ? new Date(session.expires_at * 1000).toISOString() : 'unknown'
       });
 
-      if (!res.ok) {
-        const errData = await res.json().catch(() => null);
-        if (res.status === 401) { handleTokenExpired(); return; }
-        throw new Error(errData?.detail || 'Failed to fetch emails');
+      if (!session) { 
+        console.error('No session available');
+        handleTokenExpired(); 
+        return; 
       }
 
-      const emails: Email[] = await res.json();
-      const grouped = emails.reduce<EmailsByCategory>((acc, email) => {
-        const cat = email.category_id || 'uncategorized';
-        if (!acc[cat]) acc[cat] = [];
-        acc[cat].push(email);
-        return acc;
-      }, {});
-      setEmailsByCategory(grouped);
+      const { provider_token } = session;
+      if (!provider_token) { 
+        console.error('No provider token available');
+        handleTokenExpired(); 
+        return; 
+      }
 
+      const apiUrl = getApiUrl('emails');
+      console.log('Fetching emails from:', apiUrl);
+
+      try {
+        const res = await fetch(apiUrl, {
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+            'X-Google-Token': provider_token,
+            'Content-Type': 'application/json',
+          }
+        });
+
+        console.log('Emails API response status:', res.status);
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => null);
+          console.error('Failed to fetch emails:', errData);
+          if (res.status === 401) { handleTokenExpired(); return; }
+          throw new Error(errData?.detail || 'Failed to fetch emails');
+        }
+
+        const emails: Email[] = await res.json();
+        console.log(`Received ${emails.length} emails from API`);
+        const grouped = emails.reduce<EmailsByCategory>((acc, email) => {
+          const cat = email.category_id || 'uncategorized';
+          if (!acc[cat]) acc[cat] = [];
+          acc[cat].push(email);
+          return acc;
+        }, {});
+        setEmailsByCategory(grouped);
+      } catch (fetchError) {
+        console.error('Fetch error in fetchEmails:', fetchError);
+        throw fetchError;
+      }
     } catch (err) {
-      console.error(err);
+      console.error('Error in fetchEmails:', err);
       setError(err instanceof Error ? err.message : 'An error occurred');
     }
   };
 
   const fetchCategories = async () => {
+    console.log('fetchCategories called');
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) { handleTokenExpired(); return; }
-
-      const { provider_token } = session;
-      if (!provider_token) { handleTokenExpired(); return; }
-
-      const res = await fetch(getApiUrl('categories'), {
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-          'X-Google-Token': provider_token,
-        }
+      console.log('Session for categories:', { 
+        hasAccessToken: !!session?.access_token, 
+        hasProviderToken: !!session?.provider_token 
       });
-
-      if (!res.ok) {
-        const errData = await res.json().catch(() => null);
-        if (res.status === 401) { handleTokenExpired(); return; }
-        throw new Error(errData?.detail || 'Failed to fetch categories');
+      
+      if (!session) { 
+        console.error('No session available for categories fetch');
+        handleTokenExpired(); 
+        return; 
       }
 
-      const cats: Category[] = await res.json();
-      setCategories(cats);
+      const { provider_token } = session;
+      if (!provider_token) { 
+        console.error('No provider token for categories fetch');
+        handleTokenExpired(); 
+        return; 
+      }
 
+      const apiUrl = getApiUrl('categories');
+      console.log('Fetching categories from:', apiUrl);
+      
+      try {
+        const res = await fetch(apiUrl, {
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+            'X-Google-Token': provider_token,
+          }
+        });
+
+        console.log('Categories API response status:', res.status);
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => null);
+          console.error('Failed to fetch categories:', errData);
+          if (res.status === 401) { handleTokenExpired(); return; }
+          throw new Error(errData?.detail || 'Failed to fetch categories');
+        }
+
+        const cats: Category[] = await res.json();
+        console.log(`Received ${cats.length} categories from API`);
+        setCategories(cats);
+      } catch (fetchError) {
+        console.error('Fetch error in fetchCategories:', fetchError);
+        throw fetchError;
+      }
     } catch (err) {
-      console.error(err);
+      console.error('Error in fetchCategories:', err);
       setError(err instanceof Error ? err.message : 'An error occurred');
     }
   };
@@ -124,10 +175,15 @@ export default function CategorizedEmailsPage() {
   };
 
   const loadData = async () => {
+    console.log('loadData called - starting to fetch data');
     setLoading(true);
     setError(null);
     try {
       await Promise.all([fetchEmails(), fetchCategories()]);
+      console.log('All data loaded successfully');
+    } catch (err) {
+      console.error('Error in loadData:', err);
+      setError('Failed to load data. Please try refreshing the page.');
     } finally {
       setLoading(false);
     }
@@ -216,7 +272,11 @@ export default function CategorizedEmailsPage() {
     }
   };
 
-  useEffect(() => { loadData(); }, []);
+  useEffect(() => { 
+    console.log('CategorizedEmailsPage mounted - loading data'); 
+    loadData(); 
+  }, []);
+
   useEffect(() => {
     const id = setInterval(fetchEmails, 30000);
     return () => clearInterval(id);
