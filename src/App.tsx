@@ -8,6 +8,7 @@ import CategorizedEmailsPage from './pages/CategorizedEmailsPage';
 import EmailDetailPage from './pages/EmailDetailPage';
 import { useEffect } from 'react';
 import { supabase } from './lib/supabase';
+import { getApiUrl } from './lib/config';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -33,9 +34,23 @@ function AppRoutes() {
 
   const storePrimaryAccount = async (session: any) => {
     try {
-      if (!session?.access_token || !session?.provider_token) return;
+      console.log('Store primary account called with session:', {
+        hasSession: !!session,
+        accessToken: session?.access_token ? 'present' : 'missing',
+        providerToken: session?.provider_token ? 'present' : 'missing',
+        user: session?.user ? 'present' : 'missing'
+      });
 
-      const response = await fetch('http://localhost:8000/emails/store-primary-account', {
+      if (!session?.access_token || !session?.provider_token) {
+        console.error('Missing tokens for primary account storage:', {
+          hasAccessToken: !!session?.access_token,
+          hasProviderToken: !!session?.provider_token
+        });
+        return;
+      }
+
+      console.log('Attempting to store primary account...');
+      const response = await fetch(getApiUrl('emails/store-primary-account'), {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
@@ -45,7 +60,14 @@ function AppRoutes() {
       });
 
       if (!response.ok) {
-        console.error('Failed to store primary account:', await response.text());
+        const errorText = await response.text();
+        console.error('Failed to store primary account:', {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorText
+        });
+      } else {
+        console.log('Successfully stored primary account');
       }
     } catch (error) {
       console.error('Error storing primary account:', error);
@@ -53,15 +75,62 @@ function AppRoutes() {
   };
 
   useEffect(() => {
+    console.log('Setting up auth listener...');
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_IN' && session) {
-        // Store primary account first
-        await storePrimaryAccount(session);
-        navigate('/categorized-emails', { replace: true });
+      console.log('Auth state changed in App:', {
+        event,
+        hasSession: !!session,
+        hasUser: !!user,
+        accessToken: session?.access_token ? 'present' : 'missing',
+        providerToken: session?.provider_token ? 'present' : 'missing',
+        user: session?.user ? 'present' : 'missing'
+      });
+
+      if (event === 'SIGNED_IN') {
+        try {
+          // Wait a moment for session to be fully established
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
+          // Get fresh session
+          const { data: { session: freshSession } } = await supabase.auth.getSession();
+          
+          if (!freshSession) {
+            console.error('No session available after sign in');
+            return;
+          }
+
+          console.log('Processing sign in with fresh session:', {
+            accessToken: freshSession?.access_token ? 'present' : 'missing',
+            providerToken: freshSession?.provider_token ? 'present' : 'missing',
+            user: freshSession?.user ? 'present' : 'missing'
+          });
+          
+          // Store primary account first
+          await storePrimaryAccount(freshSession);
+          
+          console.log('After storePrimaryAccount, navigating to /categorized-emails');
+          navigate('/categorized-emails', { replace: true });
+        } catch (error) {
+          console.error('Error during sign in process:', error);
+        }
+      } else if (event === 'SIGNED_OUT') {
+        console.log('SIGNED_OUT event received, redirecting to login');
+        navigate('/', { replace: true });
       }
     });
 
+    // Check initial session with detailed logging
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      console.log('Initial session check:', {
+        hasSession: !!session,
+        accessToken: session?.access_token ? 'present' : 'missing',
+        providerToken: session?.provider_token ? 'present' : 'missing',
+        user: session?.user ? 'present' : 'missing'
+      });
+    });
+
     return () => {
+      console.log('Cleaning up auth listener...');
       authListener.subscription.unsubscribe();
     };
   }, [navigate]);
@@ -78,7 +147,7 @@ function AppRoutes() {
         const { provider_token } = session;
         if (!provider_token) return;
 
-        await fetch('http://localhost:8000/emails/collection', {
+        await fetch(getApiUrl('emails/collection'), {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${session.access_token}`,

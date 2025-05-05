@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { getApiUrl } from '../lib/config';
 
 interface EmailDetail {
   user_id: string;
@@ -39,7 +40,7 @@ export default function EmailDetailPage() {
         const { provider_token } = session;
         if (!provider_token) { handleTokenExpired(); return; }
 
-        const response = await fetch(`http://localhost:8000/emails/${messageId}`, {
+        const response = await fetch(getApiUrl(`emails/${messageId}`), {
           headers: {
             'Authorization': `Bearer ${session.access_token}`,
             'X-Google-Token': provider_token,

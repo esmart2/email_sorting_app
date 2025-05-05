@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { Button } from '../components/ui/button';
 import { useNavigate } from 'react-router-dom';
+import { getApiUrl } from '../lib/config';
 
 interface Email {
   id: string;
@@ -46,7 +47,7 @@ export default function CategorizedEmailsPage() {
       const { provider_token } = session;
       if (!provider_token) { handleTokenExpired(); return; }
 
-      const res = await fetch('http://localhost:8000/emails/', {
+      const res = await fetch(getApiUrl('emails'), {
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
           'X-Google-Token': provider_token,
@@ -83,7 +84,7 @@ export default function CategorizedEmailsPage() {
       const { provider_token } = session;
       if (!provider_token) { handleTokenExpired(); return; }
 
-      const res = await fetch('http://localhost:8000/categories/', {
+      const res = await fetch(getApiUrl('categories'), {
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
           'X-Google-Token': provider_token,
@@ -108,7 +109,11 @@ export default function CategorizedEmailsPage() {
   const handleEmailSelection = (emailId: string, gmail_message_id: string) => {
     setSelectedEmails(prev => {
       const next = new Set(prev);
-      next.has(gmail_message_id) ? next.delete(gmail_message_id) : next.add(gmail_message_id);
+      if (next.has(gmail_message_id)) {
+        next.delete(gmail_message_id);
+      } else {
+        next.add(gmail_message_id);
+      }
       return next;
     });
   };
@@ -141,7 +146,7 @@ export default function CategorizedEmailsPage() {
       const { provider_token } = session;
       if (!provider_token) { handleTokenExpired(); return; }
 
-      const response = await fetch('http://localhost:8000/emails/delete', {
+      const response = await fetch(getApiUrl('emails/delete'), {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
@@ -184,7 +189,7 @@ export default function CategorizedEmailsPage() {
 
       // Process each email sequentially
       for (const messageId of selectedEmails) {
-        const response = await fetch(`http://localhost:8000/emails/unsubscribe/${messageId}`, {
+        const response = await fetch(getApiUrl(`emails/unsubscribe/${messageId}`), {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${session.access_token}`,

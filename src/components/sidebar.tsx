@@ -2,6 +2,8 @@
 import { supabase } from '../lib/supabase'
 import { Mail, User, Plus, Folder } from 'lucide-react'
 import CategoryManager from './CategoryManager'
+import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../contexts/AuthContext'
 
 interface SidebarProps {
   onCategorySelect: (categoryId: string | null) => void;
@@ -9,8 +11,12 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ onCategorySelect, selectedCategory }: SidebarProps) {
+  const navigate = useNavigate();
+  const { signOut } = useAuth();
+
   const handleSignOut = async () => {
-    await supabase.auth.signOut()
+    await signOut();
+    navigate('/', { replace: true });
   }
 
   return (

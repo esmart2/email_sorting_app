@@ -2,17 +2,11 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/button';
 import { supabase } from '../lib/supabase';
+import { getApiUrl } from '../lib/config';
 
 interface LinkedAccount {
   email: string;
   created_at: string;
-}
-
-// Extend the Session type to include provider tokens
-interface ExtendedSession {
-  access_token: string;
-  provider_token?: string;
-  provider_refresh_token?: string;
 }
 
 export default function AccountsPage() {
@@ -20,21 +14,6 @@ export default function AccountsPage() {
   const [linkedAccounts, setLinkedAccounts] = useState<LinkedAccount[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const getGoogleToken = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) return null;
-
-    // Get the provider token (Google OAuth token)
-    const { data, error } = await supabase.auth.getUser();
-    if (error || !data.user) {
-      console.error('Error getting user:', error);
-      return null;
-    }
-
-    // Access provider_token from session.provider_token
-    return session.provider_token || null;
-  };
 
   const fetchLinkedAccounts = async () => {
     try {
@@ -47,7 +26,7 @@ export default function AccountsPage() {
         return;
       }
 
-      const response = await fetch('http://localhost:8000/emails/accounts/linked', {
+      const response = await fetch(getApiUrl('emails/accounts/linked'), {
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
           'X-Google-Token': session.provider_token,
@@ -65,7 +44,6 @@ export default function AccountsPage() {
       }
 
       const data = await response.json();
-      // Filter out the primary account
       const filteredAccounts = data.filter((account: LinkedAccount) => account.email !== user?.email);
       setLinkedAccounts(filteredAccounts);
     } catch (err) {
@@ -110,7 +88,7 @@ export default function AccountsPage() {
 
       // Redirect to backend with Supabase token
       const token = encodeURIComponent(data.session.access_token);
-      const redirectUrl = `http://localhost:8000/gmail/link?token=${token}`;
+      const redirectUrl = `${getApiUrl('gmail/link')}?token=${token}`;
       
       console.log('Redirecting to:', redirectUrl.substring(0, 100) + '...');
       window.location.href = redirectUrl;

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
+import { getApiUrl } from '../lib/config'
 
 interface Category {
   id: string;
@@ -24,7 +25,7 @@ interface Email {
 }
 
 interface CategoryManagerProps {
-  onCategorySelect: (categoryId: string) => void;
+  onCategorySelect: (categoryId: string | null) => void;
   selectedCategory: string | null;
 }
 
@@ -49,7 +50,7 @@ export default function CategoryManager({ onCategorySelect, selectedCategory }: 
 
       const { access_token, provider_token } = session;
 
-      const response = await fetch('http://localhost:8000/categories/', {
+      const response = await fetch(getApiUrl('categories'), {
         headers: {
           'Authorization': `Bearer ${access_token}`,
           'X-Google-Token': provider_token || '',
@@ -78,7 +79,7 @@ export default function CategoryManager({ onCategorySelect, selectedCategory }: 
 
       const { access_token, provider_token } = session;
 
-      const response = await fetch(`http://localhost:8000/categories/${categoryId}/emails`, {
+      const response = await fetch(getApiUrl(`categories/${categoryId}/emails`), {
         headers: {
           'Authorization': `Bearer ${access_token}`,
           'X-Google-Token': provider_token || '',
@@ -113,7 +114,7 @@ export default function CategoryManager({ onCategorySelect, selectedCategory }: 
 
       const { access_token, provider_token } = session;
 
-      const response = await fetch('http://localhost:8000/categories/', {
+      const response = await fetch(getApiUrl('categories'), {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${access_token}`,
@@ -157,6 +158,12 @@ export default function CategoryManager({ onCategorySelect, selectedCategory }: 
   useEffect(() => {
     fetchCategories();
   }, []);
+
+  useEffect(() => {
+    if (selectedCategory) {
+      fetchCategoryEmails(selectedCategory);
+    }
+  }, [selectedCategory]);
 
   return (
     <div className="space-y-6">
