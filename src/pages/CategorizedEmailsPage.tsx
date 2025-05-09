@@ -304,41 +304,35 @@ export default function CategorizedEmailsPage() {
 
   useEffect(() => { 
     console.log('CategorizedEmailsPage mounted - loading data'); 
-    loadData(); 
+    
+    const init = async () => {
+      await loadData();
+      // Trigger collection immediately after initial load
+      const session = await validateSession();
+      if (session) {
+        triggerEmailCollection();
+      }
+    };
+
+    init();
   }, []);
 
   useEffect(() => {
-    let emailFetchInterval: NodeJS.Timeout;
-    let collectionTriggerInterval: NodeJS.Timeout;
+    let intervalId: NodeJS.Timeout;
 
-    // Delay the start of intervals to allow proper session initialization
-    const startIntervals = async () => {
-      // Initial data load
-      await loadData();
-
-      // Set up intervals after successful initial load
-      emailFetchInterval = setInterval(async () => {
-        const session = await validateSession();
-        if (session) {
-          fetchEmails();
-        }
-      }, 30000);
-
-      collectionTriggerInterval = setInterval(async () => {
-        const session = await validateSession();
-        if (session) {
-          triggerEmailCollection();
-        }
-      }, 60000);
-    };
-
-    // Start the intervals
-    startIntervals();
+    // Set up single interval for both operations
+    intervalId = setInterval(async () => {
+      const session = await validateSession();
+      if (session) {
+        // Trigger both operations every 30 seconds
+        triggerEmailCollection();
+        fetchEmails();
+      }
+    }, 30000);
 
     // Cleanup function
     return () => {
-      if (emailFetchInterval) clearInterval(emailFetchInterval);
-      if (collectionTriggerInterval) clearInterval(collectionTriggerInterval);
+      if (intervalId) clearInterval(intervalId);
     };
   }, []);
 
