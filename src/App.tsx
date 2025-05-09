@@ -21,7 +21,6 @@ console.log('Environment Variables:', {
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
-  const [tokenError, setTokenError] = useState<string | null>(null);
 
   useEffect(() => {
     console.log('PrivateRoute state:', { hasUser: !!user, loading });
