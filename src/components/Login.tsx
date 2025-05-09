@@ -5,91 +5,26 @@ import { useNavigate } from 'react-router-dom'
 export default function Login() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [authInfo, setAuthInfo] = useState<string | null>(null)
   const navigate = useNavigate()
 
-  // Handle the OAuth callback
-  const handleOAuthCallback = async () => {
-    try {
-      const params = new URLSearchParams(window.location.hash.substring(1));
-      const accessToken = params.get('access_token');
-      
-      if (accessToken) {
-        console.log('Found access token in URL, exchanging...');
-        const { data, error } = await supabase.auth.getSession();
-        
-        if (error) {
-          console.error('Session exchange error:', error);
-          throw error;
-        }
-
-        if (data?.session) {
-          console.log('Session exchange successful:', {
-            hasAccessToken: !!data.session.access_token,
-            hasProviderToken: !!data.session.provider_token,
-            providerToken: data.session.provider_token === 'present' ? 'placeholder' : 'valid token'
-          });
-          
-          // If we got a real session, redirect to the app
-          if (data.session.provider_token && data.session.provider_token !== 'present') {
-            navigate('/categorized-emails', { replace: true });
-            return;
-          }
-        }
-      }
-
-      // Check for error in URL params
-      const urlParams = new URLSearchParams(window.location.search);
-      if (urlParams.has('error')) {
-        throw new Error(urlParams.get('error_description') || 'Authentication error occurred');
-      }
-    } catch (err) {
-      console.error('OAuth callback error:', err);
-      setError(err instanceof Error ? err.message : 'Authentication error occurred');
-      // Clear any partial auth state
-      await supabase.auth.signOut();
-    }
-  };
-
   useEffect(() => {
-    // Check if we're handling an OAuth callback
-    if (window.location.hash || window.location.search.includes('code=')) {
-      handleOAuthCallback();
-    } else {
-      // Normal session check
-      supabase.auth.getSession().then(({ data: { session } }) => {
-        console.log('Initial session check:', {
-          hasSession: !!session,
-          hasAccessToken: !!session?.access_token,
-          providerTokenStatus: session?.provider_token ? 
-            (session.provider_token === 'present' ? 'placeholder' : 'valid') : 'none'
-        });
-        
-        if (session?.provider_token && session.provider_token !== 'present') {
-          navigate('/categorized-emails', { replace: true });
-        } else if (session) {
-          // If we have a session but invalid provider token, clear it
-          console.log('Invalid session state, clearing...');
-          supabase.auth.signOut();
-        }
-      });
-    }
+    // Check for existing session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.provider_token && session.provider_token !== 'present') {
+        navigate('/categorized-emails', { replace: true });
+      }
+    });
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log('Auth state changed:', {
+      console.log('Auth state changed in Login:', {
         event,
         hasSession: !!session,
-        hasAccessToken: !!session?.access_token,
-        providerTokenStatus: session?.provider_token ? 
-          (session.provider_token === 'present' ? 'placeholder' : 'valid') : 'none'
+        accessToken: session?.access_token ? 'present' : 'missing',
+        providerToken: session?.provider_token
       });
       
-      if (event === 'SIGNED_IN' && session) {
-        if (session.provider_token === 'present') {
-          console.log('Got placeholder token, waiting for exchange...');
-          return;
-        }
+      if (event === 'SIGNED_IN' && session?.provider_token && session.provider_token !== 'present') {
         navigate('/categorized-emails', { replace: true });
       }
     });
@@ -103,7 +38,6 @@ export default function Login() {
     try {
       setLoading(true);
       setError(null);
-      setAuthInfo(null);
       
       // Clear any existing auth state
       await supabase.auth.signOut();
@@ -112,7 +46,7 @@ export default function Login() {
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/categorized-emails`,
+          redirectTo: `${window.location.origin}`,
           queryParams: {
             access_type: 'offline',
             prompt: 'consent select_account',
@@ -123,11 +57,6 @@ export default function Login() {
 
       if (error) throw error;
       if (!data?.url) throw new Error('No OAuth URL returned');
-
-      console.log('Starting OAuth flow:', {
-        hasUrl: !!data.url,
-        redirectTo: `${window.location.origin}/categorized-emails`
-      });
 
       // Redirect to OAuth URL
       window.location.href = data.url;
@@ -156,11 +85,6 @@ export default function Login() {
         {error && (
           <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
             <p className="text-sm text-red-700">{error}</p>
-          </div>
-        )}
-        {authInfo && (
-          <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-            <p className="text-sm text-yellow-700">{authInfo}</p>
           </div>
         )}
       </div>
@@ -204,21 +128,8 @@ export default function Login() {
               </>
             )}
           </button>
-          
-          {/* Add sign out button if we're in an invalid state */}
-          {authInfo && (
-            <button
-              onClick={async () => {
-                await supabase.auth.signOut();
-                window.location.reload();
-              }}
-              className="w-full mt-4 flex justify-center items-center px-4 py-2 border border-red-300 shadow-sm text-sm font-medium rounded-md text-red-700 bg-white hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
-            >
-              Sign Out and Try Again
-            </button>
-          )}
         </div>
       </div>
     </div>
-  )
+  );
 } 

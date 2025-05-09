@@ -289,6 +289,38 @@ export default function App() {
     window.addEventListener('unhandledrejection', (event) => {
       console.error('Unhandled promise rejection:', event.reason);
     });
+
+    // Handle the OAuth redirect and token exchange
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN') {
+        console.log('Auth state changed in App:', {
+          event,
+          hasSession: !!session,
+          accessToken: session?.access_token ? 'present' : 'missing',
+          providerToken: session?.provider_token
+        });
+      }
+    });
+
+    // Get the hash fragment from the URL
+    const hashFragment = window.location.hash;
+    if (hashFragment) {
+      console.log('Found hash fragment, exchanging tokens...');
+      supabase.auth.getSession()
+        .then(({ data: { session } }) => {
+          console.log('Session after URL exchange:', {
+            hasSession: !!session,
+            accessToken: session?.access_token ? 'present' : 'missing',
+            providerToken: session?.provider_token
+          });
+        })
+        .catch(console.error);
+    }
+
+    return () => {
+      console.log('Cleaning up auth listener...');
+      subscription.unsubscribe();
+    };
   }, []);
 
   return (
