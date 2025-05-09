@@ -6,7 +6,7 @@ import AccountsPage from './pages/AccountsPage';
 import CreateCategoryPage from './pages/CreateCategoryPage';
 import CategorizedEmailsPage from './pages/CategorizedEmailsPage';
 import EmailDetailPage from './pages/EmailDetailPage';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { supabase } from './lib/supabase';
 import { getApiUrl } from './lib/config';
 
