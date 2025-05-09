@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { supabase } from '../lib/supabase';
+import { getApiUrl } from '../lib/config';
 
 interface Category {
   id: string;
@@ -29,7 +30,7 @@ export default function CreateCategoryPage() {
         throw new Error('No active session');
       }
 
-      const response = await fetch('http://localhost:8000/categories/', {
+      const response = await fetch(getApiUrl('categories/'), {
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
           'X-Google-Token': session.provider_token || ''
@@ -69,7 +70,7 @@ export default function CreateCategoryPage() {
         throw new Error('No active session');
       }
 
-      const response = await fetch('http://localhost:8000/categories/', {
+      const response = await fetch(getApiUrl('categories/'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

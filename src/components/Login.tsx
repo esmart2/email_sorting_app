@@ -80,9 +80,9 @@ export default function Login() {
       // Clear any existing sessions first to ensure we get fresh tokens
       await supabase.auth.signOut();
       
-      // Determine the redirect URL based on environment
-      const redirectURL = import.meta.env.PROD 
-        ? 'https://email-sorting-app.onrender.com/categorized-emails'
+      // Use environment variable for redirect URL
+      const redirectURL = import.meta.env.VITE_SITE_URL 
+        ? `${import.meta.env.VITE_SITE_URL}/categorized-emails`
         : `${window.location.origin}/categorized-emails`;
 
       console.log('Initiating Google OAuth login with redirect URL:', redirectURL);

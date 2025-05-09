@@ -46,8 +46,6 @@ export default function CategorizedEmailsPage() {
       console.log('Session tokens:', { 
         hasAccessToken: !!session?.access_token, 
         hasProviderToken: !!session?.provider_token,
-        accessTokenValue: session?.access_token,
-        providerTokenValue: session?.provider_token,
         expiresAt: session?.expires_at ? new Date(session.expires_at * 1000).toISOString() : 'unknown'
       });
 
@@ -57,27 +55,20 @@ export default function CategorizedEmailsPage() {
         return; 
       }
 
-      // IMPORTANT: Force the API call even with invalid tokens for debugging
-      const provider_token = session.provider_token === 'present' ? 
-        'debug_placeholder_token' : session.provider_token;
-        
-      console.error('⚠️ WARNING: Using a placeholder token for debugging');
-      
-      if (!provider_token) { 
+      if (!session.provider_token) { 
         console.error('No provider token available');
         handleTokenExpired(); 
         return; 
       }
 
       const apiUrl = getApiUrl('emails');
-      console.log('🔄 FORCE ATTEMPTING API request to:', apiUrl);
+      console.log('Making API request to:', apiUrl);
 
       try {
-        // Force the API call even with invalid tokens for debugging
         const res = await fetch(apiUrl, {
           headers: {
             'Authorization': `Bearer ${session.access_token}`,
-            'X-Google-Token': provider_token,
+            'X-Google-Token': session.provider_token,
             'Content-Type': 'application/json',
           },
           // Add cache buster to prevent caching
@@ -129,26 +120,20 @@ export default function CategorizedEmailsPage() {
         return; 
       }
 
-      // IMPORTANT: Force the API call even with invalid tokens for debugging
-      const provider_token = session.provider_token === 'present' ? 
-        'debug_placeholder_token' : session.provider_token;
-        
-      console.error('⚠️ WARNING: Using a placeholder token for categories');
-      
-      if (!provider_token) { 
+      if (!session.provider_token) { 
         console.error('No provider token for categories fetch');
         handleTokenExpired(); 
         return; 
       }
 
       const apiUrl = getApiUrl('categories');
-      console.log('🔄 FORCE ATTEMPTING categories API request to:', apiUrl);
+      console.log('Making categories API request to:', apiUrl);
       
       try {
         const res = await fetch(apiUrl, {
           headers: {
             'Authorization': `Bearer ${session.access_token}`,
-            'X-Google-Token': provider_token,
+            'X-Google-Token': session.provider_token,
           },
           // Add cache buster to prevent caching
           cache: 'no-store'
