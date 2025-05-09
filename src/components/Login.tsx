@@ -8,65 +8,93 @@ export default function Login() {
   const [authInfo, setAuthInfo] = useState<string | null>(null)
   const navigate = useNavigate()
 
-  useEffect(() => {
-    console.log('Login component mounted');
-    
-    // Check if we have auth error params in the URL
-    const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.has('error')) {
-      setError(urlParams.get('error') || 'Authentication error occurred');
+  // Handle the OAuth callback
+  const handleOAuthCallback = async () => {
+    try {
+      const params = new URLSearchParams(window.location.hash.substring(1));
+      const accessToken = params.get('access_token');
+      
+      if (accessToken) {
+        console.log('Found access token in URL, exchanging...');
+        const { data, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          console.error('Session exchange error:', error);
+          throw error;
+        }
+
+        if (data?.session) {
+          console.log('Session exchange successful:', {
+            hasAccessToken: !!data.session.access_token,
+            hasProviderToken: !!data.session.provider_token,
+            providerToken: data.session.provider_token === 'present' ? 'placeholder' : 'valid token'
+          });
+          
+          // If we got a real session, redirect to the app
+          if (data.session.provider_token && data.session.provider_token !== 'present') {
+            navigate('/categorized-emails', { replace: true });
+            return;
+          }
+        }
+      }
+
+      // Check for error in URL params
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.has('error')) {
+        throw new Error(urlParams.get('error_description') || 'Authentication error occurred');
+      }
+    } catch (err) {
+      console.error('OAuth callback error:', err);
+      setError(err instanceof Error ? err.message : 'Authentication error occurred');
+      // Clear any partial auth state
+      await supabase.auth.signOut();
     }
-    
-    // Check if we already have a session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      console.log('Initial session check in Login:', {
-        hasSession: !!session,
-        hasAccessToken: !!session?.access_token,
-        providerTokenType: typeof session?.provider_token,
-        isProviderTokenPresent: session?.provider_token === 'present'
+  };
+
+  useEffect(() => {
+    // Check if we're handling an OAuth callback
+    if (window.location.hash || window.location.search.includes('code=')) {
+      handleOAuthCallback();
+    } else {
+      // Normal session check
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        console.log('Initial session check:', {
+          hasSession: !!session,
+          hasAccessToken: !!session?.access_token,
+          providerTokenStatus: session?.provider_token ? 
+            (session.provider_token === 'present' ? 'placeholder' : 'valid') : 'none'
+        });
+        
+        if (session?.provider_token && session.provider_token !== 'present') {
+          navigate('/categorized-emails', { replace: true });
+        } else if (session) {
+          // If we have a session but invalid provider token, clear it
+          console.log('Invalid session state, clearing...');
+          supabase.auth.signOut();
+        }
       });
-      
-      // If we have a session but the provider token is just "present" (not a real token),
-      // we need to re-authenticate
-      if (session && session.provider_token === 'present') {
-        console.log('Provider token is invalid - showing re-auth message');
-        setAuthInfo('Your Google authentication has expired. Please sign in again to refresh your access.');
-        // Sign out to clear the invalid session
-        supabase.auth.signOut();
-        return;
-      }
-      
-      if (session) {
-        console.log('Existing session found in Login, redirecting...');
-        navigate('/categorized-emails', { replace: true });
-      }
-    });
+    }
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log('Auth state changed in Login:', {
+      console.log('Auth state changed:', {
         event,
         hasSession: !!session,
         hasAccessToken: !!session?.access_token,
-        hasProviderToken: !!session?.provider_token,
-        providerTokenType: typeof session?.provider_token,
-        isProviderTokenPresent: session?.provider_token === 'present'
+        providerTokenStatus: session?.provider_token ? 
+          (session.provider_token === 'present' ? 'placeholder' : 'valid') : 'none'
       });
       
       if (event === 'SIGNED_IN' && session) {
-        // Check for invalid provider token
         if (session.provider_token === 'present') {
-          console.log('Signed in but provider token is invalid - showing warning');
-          setAuthInfo('Your Google authentication is incomplete. Please sign out and sign in again.');
+          console.log('Got placeholder token, waiting for exchange...');
           return;
         }
-        
         navigate('/categorized-emails', { replace: true });
       }
     });
 
     return () => {
-      console.log('Login component unmounting, cleaning up subscription');
       subscription.unsubscribe();
     }
   }, [navigate]);
@@ -77,52 +105,32 @@ export default function Login() {
       setError(null);
       setAuthInfo(null);
       
-      // Clear any existing sessions first to ensure we get fresh tokens
+      // Clear any existing auth state
       await supabase.auth.signOut();
-      
-      // Use environment variable for redirect URL
-      const redirectURL = import.meta.env.VITE_SITE_URL 
-        ? `${import.meta.env.VITE_SITE_URL}/categorized-emails`
-        : `${window.location.origin}/categorized-emails`;
-
-      console.log('Initiating Google OAuth login with redirect URL:', redirectURL);
+      localStorage.clear();
       
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: redirectURL,
+          redirectTo: `${window.location.origin}/categorized-emails`,
           queryParams: {
             access_type: 'offline',
-            prompt: 'consent select_account',  // Force account selection
+            prompt: 'consent select_account',
           },
           scopes: 'https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/gmail.settings.basic https://www.googleapis.com/auth/gmail.labels email profile'
         }
       });
 
-      if (error) {
-        console.error('OAuth error:', error);
-        throw error;
-      }
-      
-      if (!data) {
-        console.error('No data returned from auth');
-        throw new Error('No data returned from auth');
-      }
+      if (error) throw error;
+      if (!data?.url) throw new Error('No OAuth URL returned');
 
-      // Add validation for the session
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.provider_token === 'present') {
-        console.error('Invalid provider token received');
-        setError('Failed to get proper authentication from Google. Please try again.');
-        await supabase.auth.signOut();
-        return;
-      }
-
-      console.log('Sign in initiated successfully:', {
-        hasData: !!data,
-        url: data.url,
-        hasValidToken: session?.provider_token && session.provider_token !== 'present'
+      console.log('Starting OAuth flow:', {
+        hasUrl: !!data.url,
+        redirectTo: `${window.location.origin}/categorized-emails`
       });
+
+      // Redirect to OAuth URL
+      window.location.href = data.url;
     } catch (err) {
       console.error('Login error:', err);
       setError(err instanceof Error ? err.message : 'An error occurred during login');
