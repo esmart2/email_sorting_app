@@ -50,8 +50,10 @@ export default function CategorizedEmailsPage() {
 
     if (!session.provider_token || session.provider_token === 'present') {
       console.error('Invalid or missing provider token');
-      setError('Your Google authentication has expired. Please sign in again.');
-      handleTokenExpired();
+      console.error('Provider token issue:', {
+        hasToken: !!session.provider_token,
+        tokenValue: session.provider_token
+      });
       return null;
     }
 
@@ -281,39 +283,62 @@ export default function CategorizedEmailsPage() {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
+          'X-Google-Token': session.provider_token || '',
           'Content-Type': 'application/json',
         }
       });
 
       if (!response.ok) {
         if (response.status === 401) {
-          handleTokenExpired();
+          console.error('Authentication failed for email collection:', response.status);
+          // Don't trigger immediate logout on collection failure
           return;
         }
         console.error('Email collection trigger failed:', response.status);
       }
     } catch (err) {
       console.error('Error triggering email collection:', err);
+      // Don't set error state for background collection
     }
   };
 
   useEffect(() => { 
     console.log('CategorizedEmailsPage mounted - loading data'); 
     loadData(); 
-    
-    // Initial trigger of email collection
-    triggerEmailCollection();
   }, []);
 
   useEffect(() => {
-    // Set up both intervals
-    const emailFetchInterval = setInterval(fetchEmails, 30000); // Fetch emails every 30 seconds
-    const collectionTriggerInterval = setInterval(triggerEmailCollection, 60000); // Trigger collection every 60 seconds
+    let emailFetchInterval: NodeJS.Timeout;
+    let collectionTriggerInterval: NodeJS.Timeout;
 
-    // Cleanup both intervals on unmount
+    // Delay the start of intervals to allow proper session initialization
+    const startIntervals = async () => {
+      // Initial data load
+      await loadData();
+
+      // Set up intervals after successful initial load
+      emailFetchInterval = setInterval(async () => {
+        const session = await validateSession();
+        if (session) {
+          fetchEmails();
+        }
+      }, 30000);
+
+      collectionTriggerInterval = setInterval(async () => {
+        const session = await validateSession();
+        if (session) {
+          triggerEmailCollection();
+        }
+      }, 60000);
+    };
+
+    // Start the intervals
+    startIntervals();
+
+    // Cleanup function
     return () => {
-      clearInterval(emailFetchInterval);
-      clearInterval(collectionTriggerInterval);
+      if (emailFetchInterval) clearInterval(emailFetchInterval);
+      if (collectionTriggerInterval) clearInterval(collectionTriggerInterval);
     };
   }, []);
 
