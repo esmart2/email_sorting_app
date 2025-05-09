@@ -14,7 +14,6 @@ export default function AccountsPage() {
   const [linkedAccounts, setLinkedAccounts] = useState<LinkedAccount[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [actionInProgress, setActionInProgress] = useState(false);
-  const [tokenDebug, setTokenDebug] = useState<any>(null);
 
   const fetchLinkedAccounts = async () => {
     setActionInProgress(true);
@@ -22,21 +21,6 @@ export default function AccountsPage() {
     
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      
-      // DEBUG: Check token info
-      setTokenDebug({
-        hasSession: !!session,
-        accessTokenType: typeof session?.access_token,
-        accessTokenLength: session?.access_token?.length,
-        accessTokenPrefix: session?.access_token?.substring(0, 10) + '...',
-        providerTokenType: typeof session?.provider_token,
-        providerTokenLength: session?.provider_token?.length,
-        providerTokenPrefix: session?.provider_token?.substring(0, 10) + '...',
-        userInfo: session?.user ? {
-          id: session.user.id,
-          email: session.user.email
-        } : null
-      });
       
       if (!session) {
         throw new Error('No session found');
@@ -86,14 +70,7 @@ export default function AccountsPage() {
   const handleLinkAccount = async () => {
     try {
       setActionInProgress(true);
-      console.log('Getting Supabase session...');
       const { data, error } = await supabase.auth.getSession();
-      
-      console.log('Session data:', {
-        hasSession: !!data.session,
-        hasToken: !!data.session?.access_token,
-        tokenStart: data.session?.access_token ? data.session.access_token.substring(0, 20) + '...' : 'none'
-      });
 
       if (error) {
         console.error('Error getting session:', error);
@@ -114,7 +91,6 @@ export default function AccountsPage() {
       const token = encodeURIComponent(data.session.access_token);
       const redirectUrl = `${getApiUrl('gmail/link')}?token=${token}`;
       
-      console.log('Redirecting to:', redirectUrl.substring(0, 100) + '...');
       window.location.href = redirectUrl;
 
     } catch (err) {
@@ -150,14 +126,6 @@ export default function AccountsPage() {
           </Button>
         )}
       </div>
-
-      {/* Token debugging section */}
-      {tokenDebug && (
-        <div className="p-4 bg-gray-100 rounded-lg mb-4 overflow-auto max-h-60">
-          <h3 className="font-semibold mb-2">Token Debug Info:</h3>
-          <pre className="text-xs">{JSON.stringify(tokenDebug, null, 2)}</pre>
-        </div>
-      )}
       
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
