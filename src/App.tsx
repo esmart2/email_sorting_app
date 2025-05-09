@@ -25,28 +25,6 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     console.log('PrivateRoute state:', { hasUser: !!user, loading });
-    
-    // Check if we have a valid provider token
-    async function checkTokens() {
-      const { data: { session } } = await supabase.auth.getSession();
-      console.log('Token check:', {
-        hasAccessToken: !!session?.access_token,
-        accessTokenType: typeof session?.access_token,
-        hasProviderToken: !!session?.provider_token,
-        providerTokenType: typeof session?.provider_token,
-        providerTokenValue: session?.provider_token ? 
-          (session.provider_token === 'present' ? 'LITERAL_PRESENT' : 'VALID_TOKEN') : 'MISSING'
-      });
-      
-      if (session?.provider_token === 'present') {
-        console.error('Provider token is literal "present" string, not a real token');
-        setTokenError('Your Google authorization has expired. Please sign out and sign in again.');
-      }
-    }
-    
-    if (user) {
-      checkTokens();
-    }
   }, [user, loading]);
 
   if (loading) {
@@ -60,30 +38,6 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
   if (!user) {
     return <Navigate to="/" replace />;
   }
-  
-  if (tokenError) {
-    return (
-      <Layout>
-        <div className="min-h-screen py-8">
-          <div className="max-w-2xl mx-auto px-4">
-            <div className="bg-red-50 border border-red-300 rounded-lg p-6 mb-6">
-              <h2 className="text-xl font-bold text-red-700 mb-2">Authentication Error</h2>
-              <p className="text-red-700 mb-4">{tokenError}</p>
-              <button 
-                onClick={async () => {
-                  await supabase.auth.signOut();
-                  window.location.href = '/';
-                }}
-                className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
-              >
-                Sign Out and Try Again
-              </button>
-            </div>
-          </div>
-        </div>
-      </Layout>
-    );
-  }
 
   return <Layout>{children}</Layout>;
 }
@@ -96,33 +50,20 @@ function AppRoutes() {
     try {
       console.log('Store primary account called with session:', {
         hasSession: !!session,
-        accessToken: session?.access_token ? (typeof session.access_token === 'string' ? 'present' : 'object') : 'missing',
-        providerToken: session?.provider_token ? 
-          (session.provider_token === 'present' ? 'LITERAL_PRESENT' : 'VALID_TOKEN') : 'MISSING',
-        user: session?.user ? 'present' : 'missing'
+        accessToken: session?.access_token ? 'present' : 'missing',
+        providerToken: session?.provider_token ? 'present' : 'missing',
       });
 
-      if (!session?.access_token) {
-        console.error('Missing access token for primary account storage');
+      if (!session?.access_token || !session?.provider_token) {
+        console.error('Missing tokens for primary account storage');
         return;
       }
 
-      // FORCE API CALL: Use placeholder for debugging if token is "present"
-      let provider_token = session.provider_token;
-      if (provider_token === 'present') {
-        console.error('Provider token is the literal string "present" - using placeholder for debugging');
-        provider_token = 'debug_placeholder_token';
-      } else if (!provider_token) {
-        console.error('Missing provider token for primary account storage');
-        return;
-      }
-
-      console.log('🔄 FORCE ATTEMPTING to store primary account...');
       const response = await fetch(getApiUrl('emails/store-primary-account'), {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
-          'X-Google-Token': provider_token,
+          'X-Google-Token': session.provider_token,
           'Content-Type': 'application/json',
         },
         cache: 'no-store'
@@ -138,9 +79,7 @@ function AppRoutes() {
           error: errorText
         });
         
-        // If we get a 401, the token is invalid - sign out and try again
         if (response.status === 401) {
-          console.error('Auth tokens are invalid or expired - signing out');
           await supabase.auth.signOut();
           navigate('/', { replace: true });
         }
@@ -155,36 +94,18 @@ function AppRoutes() {
   useEffect(() => {
     console.log('Setting up auth listener...');
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('Auth state changed in App:', {
+      console.log('Auth state changed in AppRoutes:', {
         event,
         hasSession: !!session,
         hasUser: !!user,
         accessToken: session?.access_token ? 'present' : 'missing',
-        providerToken: session?.provider_token ? 'present' : 'missing',
-        user: session?.user ? 'present' : 'missing'
+        providerToken: session?.provider_token,
       });
 
-      if (event === 'SIGNED_IN') {
+      if (event === 'SIGNED_IN' && session) {
         try {
-          // Wait a moment for session to be fully established
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          
-          // Get fresh session
-          const { data: { session: freshSession } } = await supabase.auth.getSession();
-          
-          if (!freshSession) {
-            console.error('No session available after sign in');
-            return;
-          }
-
-          console.log('Processing sign in with fresh session:', {
-            accessToken: freshSession?.access_token ? 'present' : 'missing',
-            providerToken: freshSession?.provider_token ? 'present' : 'missing',
-            user: freshSession?.user ? 'present' : 'missing'
-          });
-          
           // Store primary account first
-          await storePrimaryAccount(freshSession);
+          await storePrimaryAccount(session);
           
           console.log('After storePrimaryAccount, navigating to /categorized-emails');
           navigate('/categorized-emails', { replace: true });
@@ -197,55 +118,11 @@ function AppRoutes() {
       }
     });
 
-    // Check initial session with detailed logging
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      console.log('Initial session check:', {
-        hasSession: !!session,
-        accessToken: session?.access_token ? 'present' : 'missing',
-        providerToken: session?.provider_token ? 'present' : 'missing',
-        user: session?.user ? 'present' : 'missing'
-      });
-    });
-
     return () => {
       console.log('Cleaning up auth listener...');
       authListener.subscription.unsubscribe();
     };
-  }, [navigate]);
-
-  // Add email collection interval
-  useEffect(() => {
-    if (!user) return;
-
-    const collectEmails = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) return;
-
-        const { provider_token } = session;
-        if (!provider_token) return;
-
-        await fetch(getApiUrl('emails/collection'), {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${session.access_token}`,
-            'X-Google-Token': provider_token,
-            'Content-Type': 'application/json',
-          },
-        });
-      } catch (error) {
-        console.error('Error collecting emails:', error);
-      }
-    };
-
-    // Initial collection
-    collectEmails();
-
-    // Set up interval
-    const intervalId = setInterval(collectEmails, 1800000); // 30 minutes
-
-    return () => clearInterval(intervalId);
-  }, [user]);
+  }, [navigate, user]);
 
   return (
     <Routes>
@@ -280,45 +157,57 @@ function AppRoutes() {
 
 export default function App() {
   useEffect(() => {
-    // Add error event listener
-    window.addEventListener('error', (event) => {
-      console.error('Global error:', event.error);
-    });
+    // Handle the OAuth redirect
+    const handleOAuthCallback = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          console.error('Failed to get session:', error);
+          return;
+        }
 
-    // Add unhandled promise rejection listener
-    window.addEventListener('unhandledrejection', (event) => {
-      console.error('Unhandled promise rejection:', event.reason);
-    });
-
-    // Handle the OAuth redirect and token exchange
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_IN') {
-        console.log('Auth state changed in App:', {
-          event,
+        console.log('Current session:', {
           hasSession: !!session,
           accessToken: session?.access_token ? 'present' : 'missing',
           providerToken: session?.provider_token
         });
+
+        // If we have a hash or code in the URL, try to exchange it
+        if (window.location.hash || window.location.search.includes('code=')) {
+          console.log('Found OAuth callback data, exchanging...');
+          const { data, error } = await supabase.auth.getSession();
+          
+          if (error) {
+            console.error('Session exchange failed:', error);
+            return;
+          }
+
+          console.log('Session after exchange:', {
+            hasSession: !!data.session,
+            accessToken: data.session?.access_token ? 'present' : 'missing',
+            providerToken: data.session?.provider_token
+          });
+        }
+      } catch (err) {
+        console.error('OAuth callback error:', err);
       }
+    };
+
+    // Call it immediately
+    handleOAuthCallback();
+
+    // Set up auth listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log('Auth state changed in root App:', {
+        event,
+        hasSession: !!session,
+        accessToken: session?.access_token ? 'present' : 'missing',
+        providerToken: session?.provider_token
+      });
     });
 
-    // Get the hash fragment from the URL
-    const hashFragment = window.location.hash;
-    if (hashFragment) {
-      console.log('Found hash fragment, exchanging tokens...');
-      supabase.auth.getSession()
-        .then(({ data: { session } }) => {
-          console.log('Session after URL exchange:', {
-            hasSession: !!session,
-            accessToken: session?.access_token ? 'present' : 'missing',
-            providerToken: session?.provider_token
-          });
-        })
-        .catch(console.error);
-    }
-
     return () => {
-      console.log('Cleaning up auth listener...');
       subscription.unsubscribe();
     };
   }, []);
