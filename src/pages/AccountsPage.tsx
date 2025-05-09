@@ -49,7 +49,7 @@ export default function AccountsPage() {
         return;
       }
 
-      const res = await fetch(getApiUrl('accounts/linked'), {
+      const res = await fetch(getApiUrl('emails/accounts/linked'), {
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
           'X-Google-Token': session.provider_token || '',
