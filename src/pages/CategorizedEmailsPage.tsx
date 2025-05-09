@@ -272,14 +272,49 @@ export default function CategorizedEmailsPage() {
     }
   };
 
+  const triggerEmailCollection = async () => {
+    try {
+      const session = await validateSession();
+      if (!session) return;
+
+      const response = await fetch('https://emal-sorting-api.onrender.com/emails/collection', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        }
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          handleTokenExpired();
+          return;
+        }
+        console.error('Email collection trigger failed:', response.status);
+      }
+    } catch (err) {
+      console.error('Error triggering email collection:', err);
+    }
+  };
+
   useEffect(() => { 
     console.log('CategorizedEmailsPage mounted - loading data'); 
     loadData(); 
+    
+    // Initial trigger of email collection
+    triggerEmailCollection();
   }, []);
 
   useEffect(() => {
-    const id = setInterval(fetchEmails, 30000);
-    return () => clearInterval(id);
+    // Set up both intervals
+    const emailFetchInterval = setInterval(fetchEmails, 30000); // Fetch emails every 30 seconds
+    const collectionTriggerInterval = setInterval(triggerEmailCollection, 60000); // Trigger collection every 60 seconds
+
+    // Cleanup both intervals on unmount
+    return () => {
+      clearInterval(emailFetchInterval);
+      clearInterval(collectionTriggerInterval);
+    };
   }, []);
 
   return (
