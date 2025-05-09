@@ -39,27 +39,30 @@ export default function CategorizedEmailsPage() {
     navigate('/', { replace: true });
   };
 
+  const validateSession = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    if (!session) {
+      console.error('No session available');
+      handleTokenExpired();
+      return null;
+    }
+
+    if (!session.provider_token || session.provider_token === 'present') {
+      console.error('Invalid or missing provider token');
+      setError('Your Google authentication has expired. Please sign in again.');
+      handleTokenExpired();
+      return null;
+    }
+
+    return session;
+  };
+
   const fetchEmails = async () => {
     console.log('fetchEmails called');
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      console.log('Session tokens:', { 
-        hasAccessToken: !!session?.access_token, 
-        hasProviderToken: !!session?.provider_token,
-        expiresAt: session?.expires_at ? new Date(session.expires_at * 1000).toISOString() : 'unknown'
-      });
-
-      if (!session) { 
-        console.error('No session available');
-        handleTokenExpired(); 
-        return; 
-      }
-
-      if (!session.provider_token) { 
-        console.error('No provider token available');
-        handleTokenExpired(); 
-        return; 
-      }
+      const session = await validateSession();
+      if (!session) return;
 
       const apiUrl = getApiUrl('emails');
       console.log('Making API request to:', apiUrl);
@@ -68,10 +71,9 @@ export default function CategorizedEmailsPage() {
         const res = await fetch(apiUrl, {
           headers: {
             'Authorization': `Bearer ${session.access_token}`,
-            'X-Google-Token': session.provider_token,
+            'X-Google-Token': session.provider_token || '',
             'Content-Type': 'application/json',
           },
-          // Add cache buster to prevent caching
           cache: 'no-store'
         });
 
@@ -80,18 +82,25 @@ export default function CategorizedEmailsPage() {
         if (!res.ok) {
           const errData = await res.text();
           console.error('Failed to fetch emails response:', errData);
-          if (res.status === 401) { handleTokenExpired(); return; }
+          
+          if (res.status === 401) {
+            handleTokenExpired();
+            return;
+          }
+          
           throw new Error(errData || 'Failed to fetch emails');
         }
 
         const emails = await res.json() as Email[];
         console.log(`Received ${emails.length} emails from API`);
+        
         const grouped = emails.reduce<EmailsByCategory>((acc, email) => {
           const cat = email.category_id || 'uncategorized';
           if (!acc[cat]) acc[cat] = [];
           acc[cat].push(email);
           return acc;
         }, {});
+        
         setEmailsByCategory(grouped);
       } catch (fetchError) {
         console.error('Fetch error in fetchEmails:', fetchError);
@@ -106,25 +115,8 @@ export default function CategorizedEmailsPage() {
   const fetchCategories = async () => {
     console.log('fetchCategories called');
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      console.log('Session for categories:', { 
-        hasAccessToken: !!session?.access_token, 
-        hasProviderToken: !!session?.provider_token,
-        accessTokenValue: session?.access_token,
-        providerTokenValue: session?.provider_token
-      });
-      
-      if (!session) { 
-        console.error('No session available for categories fetch');
-        handleTokenExpired(); 
-        return; 
-      }
-
-      if (!session.provider_token) { 
-        console.error('No provider token for categories fetch');
-        handleTokenExpired(); 
-        return; 
-      }
+      const session = await validateSession();
+      if (!session) return;
 
       const apiUrl = getApiUrl('categories');
       console.log('Making categories API request to:', apiUrl);
@@ -133,9 +125,8 @@ export default function CategorizedEmailsPage() {
         const res = await fetch(apiUrl, {
           headers: {
             'Authorization': `Bearer ${session.access_token}`,
-            'X-Google-Token': session.provider_token,
+            'X-Google-Token': session.provider_token || '',
           },
-          // Add cache buster to prevent caching
           cache: 'no-store'
         });
 
@@ -144,7 +135,12 @@ export default function CategorizedEmailsPage() {
         if (!res.ok) {
           const errData = await res.text();
           console.error('Failed to fetch categories response:', errData);
-          if (res.status === 401) { handleTokenExpired(); return; }
+          
+          if (res.status === 401) {
+            handleTokenExpired();
+            return;
+          }
+          
           throw new Error(errData || 'Failed to fetch categories');
         }
 

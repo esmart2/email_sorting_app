@@ -93,7 +93,7 @@ export default function Login() {
           redirectTo: redirectURL,
           queryParams: {
             access_type: 'offline',
-            prompt: 'consent',
+            prompt: 'consent select_account',  // Force account selection
           },
           scopes: 'https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/gmail.settings.basic https://www.googleapis.com/auth/gmail.labels email profile'
         }
@@ -109,9 +109,19 @@ export default function Login() {
         throw new Error('No data returned from auth');
       }
 
+      // Add validation for the session
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.provider_token === 'present') {
+        console.error('Invalid provider token received');
+        setError('Failed to get proper authentication from Google. Please try again.');
+        await supabase.auth.signOut();
+        return;
+      }
+
       console.log('Sign in initiated successfully:', {
         hasData: !!data,
-        url: data.url
+        url: data.url,
+        hasValidToken: session?.provider_token && session.provider_token !== 'present'
       });
     } catch (err) {
       console.error('Login error:', err);
